@@ -1,7 +1,11 @@
 using System;
+using Game.Cameras;
 using Game.Core;
 using Game.Player;
+using Game.UI;
 using Game.Wind;
+using Unity.Cinemachine;
+using Unity.Cinemachine.TargetTracking;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -153,6 +157,83 @@ namespace Game.EditorTools
             Selection.activeGameObject = player;
             EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
             Debug.Log("Game > Setup: Player criado na cena.");
+        }
+
+        [MenuItem("Game/Setup/Create Player Camera")]
+        public static void CreatePlayerCamera()
+        {
+            // 1) A câmera real da cena (Main Camera) precisa de um CinemachineBrain para obedecer a câmera virtual.
+            Camera main = Camera.main;
+            if (main == null)
+            {
+                var cameraObject = new GameObject("Main Camera") { tag = "MainCamera" };
+                main = cameraObject.AddComponent<Camera>();
+                cameraObject.AddComponent<AudioListener>();
+                Undo.RegisterCreatedObjectUndo(cameraObject, "Create Main Camera");
+            }
+
+            if (main.GetComponent<CinemachineBrain>() == null)
+                Undo.AddComponent<CinemachineBrain>(main.gameObject);
+
+            // 2) A câmera virtual orbital que segue o Player.
+            var rig = new GameObject("CM_PlayerCamera");
+            Undo.RegisterCreatedObjectUndo(rig, "Create Player Camera");
+
+            var virtualCamera = rig.AddComponent<CinemachineCamera>();
+            var orbital = rig.AddComponent<CinemachineOrbitalFollow>();
+            var composer = rig.AddComponent<CinemachineRotationComposer>();
+            rig.AddComponent<OrbitCameraDriver>(); // configura a órbita em esfera e lê o mouse pelo GameInput
+
+            orbital.OrbitStyle = CinemachineOrbitalFollow.OrbitStyles.Sphere;
+            orbital.Radius = 6f;
+            // WorldSpace: a câmera NÃO gira junto com o Player (a bola rola o tempo todo).
+            orbital.TrackerSettings.BindingMode = BindingMode.WorldSpace;
+            // Olha um pouco acima do centro do player, para ele não ficar colado no meio da tela.
+            composer.TargetOffset = new Vector3(0f, 0.6f, 0f);
+
+            var player = Object.FindFirstObjectByType<PlayerFormController>();
+            if (player != null)
+                virtualCamera.Target.TrackingTarget = player.transform;
+            else
+                Debug.LogWarning("Game > Setup: nenhum Player na cena. Crie o Player e arraste-o em " +
+                                 "Tracking Target da CM_PlayerCamera.");
+
+            Selection.activeGameObject = rig;
+            EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
+            Debug.Log("Game > Setup: câmera do player criada.");
+        }
+
+        [MenuItem("Game/Setup/Create Wind Arrow")]
+        public static void CreateWindArrow()
+        {
+            EnsureFolder("Assets", "_Project");
+            EnsureFolder(RootFolder, "Art");
+            EnsureFolder(RootFolder + "/Art", "Materials");
+
+            // Material sem luz para a seta. Não sobrescreve se já existir.
+            string materialPath = RootFolder + "/Art/Materials/WindArrow.mat";
+            var material = AssetDatabase.LoadAssetAtPath<Material>(materialPath);
+            if (material == null)
+            {
+                Shader shader = Shader.Find("Universal Render Pipeline/Unlit");
+                if (shader == null) shader = Shader.Find("Unlit/Color");
+
+                material = new Material(shader);
+                AssetDatabase.CreateAsset(material, materialPath);
+                AssetDatabase.SaveAssets();
+            }
+
+            var arrowObject = new GameObject("WindArrowIndicator");
+            Undo.RegisterCreatedObjectUndo(arrowObject, "Create Wind Arrow");
+            var indicator = arrowObject.AddComponent<WindArrowIndicator>();
+
+            var so = new SerializedObject(indicator);
+            so.FindProperty("arrowMaterial").objectReferenceValue = material;
+            so.ApplyModifiedPropertiesWithoutUndo();
+
+            Selection.activeGameObject = arrowObject;
+            EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
+            Debug.Log("Game > Setup: seta do vento criada.");
         }
 
         // ---------- Ajudantes ----------

@@ -4,7 +4,10 @@
     "references": [
         "Game.Core",
         "Game.Wind",
-        "Game.Player"
+        "Game.Player",
+        "Game.Cameras",
+        "Game.UI",
+        "Unity.Cinemachine"
     ],
     "includePlatforms": [
         "Editor"
